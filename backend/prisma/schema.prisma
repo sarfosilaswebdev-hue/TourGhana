@@ -1,0 +1,77 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Category {
+  NATURE
+  CULTURAL
+  HISTORICAL
+  ADVENTURE
+  BEACH
+}
+
+model User {
+  id             String         @id @default(uuid())
+  clerkId        String         @unique
+  firstName      String?
+  lastName       String?
+  avatarUrl      String?
+  email          String         @unique
+  interests      Category[]
+  createdAt      DateTime       @default(now())
+
+  conversations  Conversation[]
+}
+
+model Destination {
+  id             String         @id @default(cuid())
+  name           String
+  description    String
+  region         String
+  category       Category
+  latitude       Float
+  longitude      Float
+  rating         Float
+  tags           String[]
+  images         String[]
+  createdAt      DateTime       @default(now())
+
+  conversations  Conversation[]
+}
+
+model Conversation {
+  id             String         @id @default(uuid())
+  createdAt      DateTime       @default(now())
+
+  userId         String
+  user           User @relation(fields: [userId], references: [id])
+
+  destinationId  String
+  destination    Destination @relation(fields: [destinationId], references: [id])
+
+  messages       Message[]
+}
+
+model Message {
+  id             String         @id @default(uuid())
+  role           MessageRole
+  content        String         @db.Text
+  createdAt      DateTime       @default(now())
+
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
