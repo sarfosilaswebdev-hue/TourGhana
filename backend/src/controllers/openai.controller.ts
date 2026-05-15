@@ -158,7 +158,6 @@ export const getConversations = catchAsync(async (req, res) => {
       messages: { orderBy: { createdAt: "asc" } },
     },
   });
-  console.log(conversations);
 
   // Flatten all messages across all conversations into one sorted list
   const messages = conversations.flatMap((c) => c.messages);

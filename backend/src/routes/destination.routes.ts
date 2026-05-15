@@ -1,9 +1,12 @@
 import { Router } from "express";
 import {
+  addToFavorites,
   createDestination,
   getAllDestinations,
   getDestinationByCategory,
   getDestinationById,
+  getUserFavorites,
+  removeFromFavorites,
 } from "../controllers/destinations.controller";
 const router = Router();
 
@@ -18,5 +21,11 @@ router.get("/destinations/category/:category", getDestinationByCategory);
 
 //POST /destinations
 router.post("/destinations", createDestination);
+
+router.post("/favorite/:destinationId",addToFavorites);
+
+router.delete("/favorite/:destinationId",removeFromFavorites);
+
+router.get("/favorites", getUserFavorites)
 
 export default router;
