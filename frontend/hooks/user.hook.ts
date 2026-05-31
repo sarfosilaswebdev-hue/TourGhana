@@ -3,10 +3,11 @@ import { useAuth } from "@clerk/expo"
 import { useQuery } from "@tanstack/react-query"
 
 export const useUser = ()=>{
-    const {getToken}= useAuth();
-  
+    const { getToken, isSignedIn } = useAuth();
+
     return useQuery({
         queryKey: ['user'],
+        enabled: !!isSignedIn,
         queryFn: async ()=>{
               const token = await getToken();
             return  apiCall('/user/me', {
@@ -15,7 +16,7 @@ export const useUser = ()=>{
                     'Content-Type': 'application/json',
                      Authorization: `Bearer ${token}`,
                 }
-            })   
+            })
         }
     })
 }

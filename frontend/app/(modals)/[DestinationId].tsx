@@ -4,6 +4,8 @@ import {
   Image,
   ImageStyle,
   KeyboardAvoidingView,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
   Platform,
   ScrollView,
   Text,
@@ -17,20 +19,22 @@ import { useGetDestinationById } from "@/hooks/destination.hook";
 import { Destination, Message, MessageRole } from "@/Utils/types";
 import { AntDesign, Ionicons } from "@expo/vector-icons";
 import { optimizeImage } from "@/Utils/optimizeImage";
-import Button from "@/components/ui/Button";
 import MapView, { Marker } from "react-native-maps";
 import { Colors } from "@/contants/colors";
 import { DefaultStyles } from "@/contants/contants";
 import { useNavigation } from "@react-navigation/native";
 import ChatCard from "@/components/ui/ChatCard";
-import { useGetConversations, useSendChat } from "@/hooks/chat.hook";
+import { useGetConversations, useSendChat, useDeleteMessage, useDeleteAllChats } from "@/hooks/chat.hook";
 import Animated, {
   interpolate,
+  useAnimatedRef,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
+  withTiming,
 } from "react-native-reanimated";
 import { BlurView } from "expo-blur";
+import { useTheme, useThemeColors } from "@/context/ThemeContext";
 
 const { width } = Dimensions.get("window");
 
@@ -40,6 +44,8 @@ const DestinationDetailsScreen = () => {
   const { DestinationId } = useLocalSearchParams();
   const router = useRouter();
   const navigation = useNavigation();
+  const C = useThemeColors();
+  const {isDark} = useTheme();
 
   // ── ALL hooks first, before any early returns ──
   const [favourited, setFavourited] = useState(false);
@@ -47,12 +53,31 @@ const DestinationDetailsScreen = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [showScrollButton, setShowScrollButton] = useState(false);
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
 
   const scrollY = useSharedValue(0);
+  const opacity = useSharedValue(0);
 
-  const scrollHandler = useAnimatedScrollHandler((event) => {
-    scrollY.value = event.contentOffset.y;
-  });
+  const scrollHandler = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+
+    scrollY.value = contentOffset.y;
+
+    const isAtBottom =
+      layoutMeasurement.height + contentOffset.y >= contentSize.height - 50;
+
+    setShowScrollButton(!isAtBottom);
+  };
+
+  const AnimatedTouchableOpacity =
+    Animated.createAnimatedComponent(TouchableOpacity);
+
+  useEffect(() => {
+    opacity.value = withTiming(showScrollButton ? 1 : 0, {
+      duration: 200,
+    });
+  }, [showScrollButton]);
 
   const imageAnimatedStyle = useAnimatedStyle(() => ({
     transform: [
@@ -77,6 +102,15 @@ const DestinationDetailsScreen = () => {
     opacity: interpolate(scrollY.value, [0, IMAGE_HEIGHT / 2], [0, 1]),
   }));
 
+  const touchableOpacityAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [
+      {
+        translateY: withTiming(showScrollButton ? 0 : 20),
+      },
+    ],
+  }));
+
   const destId = Array.isArray(DestinationId)
     ? DestinationId[0]
     : DestinationId;
@@ -84,7 +118,11 @@ const DestinationDetailsScreen = () => {
   const { data, isFetching } = useGetDestinationById(destId ?? "");
   const destination: Destination | undefined = data?.destination;
 
+  const scrollRef = useAnimatedRef<Animated.ScrollView>();
+
   const { sendChat } = useSendChat();
+  const { mutateAsync: deleteMessageApi } = useDeleteMessage();
+  const { mutateAsync: deleteAllChatsApi } = useDeleteAllChats();
   const { data: conversation, refetch: refetchConversations } =
     useGetConversations(destId ?? "");
 
@@ -101,6 +139,7 @@ const DestinationDetailsScreen = () => {
           id: msg.id,
           role: msg.role === "USER" ? MessageRole.USER : MessageRole.ASSISTANT,
           content: msg.content,
+          createdAt: msg.createdAt ?? new Date().toISOString(),
         })),
       );
     }
@@ -168,6 +207,7 @@ const DestinationDetailsScreen = () => {
       id: Date.now().toString(),
       role: MessageRole.USER,
       content: userText,
+      createdAt: new Date().toISOString(),
     };
 
     const assistantId = `ai-${Date.now()}`;
@@ -175,10 +215,12 @@ const DestinationDetailsScreen = () => {
       id: assistantId,
       role: MessageRole.ASSISTANT,
       content: "",
+      createdAt: new Date().toISOString(),
     };
 
     setMessages((prev) => [...prev, userMessage, assistantMessage]);
     setChatInput("");
+    setStreamingMessageId(assistantId);
 
     try {
       await sendChat({
@@ -197,13 +239,35 @@ const DestinationDetailsScreen = () => {
           );
         },
         onFinish: async () => {
-          console.log("✅ Stream complete");
+          setStreamingMessageId(null);
           await refetchConversations();
         },
       });
     } catch (err) {
       console.error("❌ Chat error:", err);
+      setStreamingMessageId(null);
       setMessages((prev) => prev.filter((msg) => msg.id !== assistantId));
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    // Optimistically remove from local state
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    try {
+      await deleteMessageApi(messageId);
+    } catch {
+      // Revert on failure by refetching
+      await refetchConversations();
+    }
+  };
+
+  const handleDeleteAllChats = async () => {
+    setMessages([]);
+    setConversationId(null);
+    try {
+      await deleteAllChatsApi(destId ?? "");
+    } catch {
+      await refetchConversations();
     }
   };
 
@@ -241,6 +305,12 @@ const DestinationDetailsScreen = () => {
   const fullStars = Math.floor(destination.rating ?? 4.5);
   const hasHalfStar = (destination.rating ?? 4.5) % 1 >= 0.5;
 
+  function handleScrollToButtom() {
+    if (scrollRef.current) {
+      scrollRef.current.scrollToEnd({ animated: true });
+    }
+  }
+
   return (
     <KeyboardAvoidingView
       keyboardVerticalOffset={10}
@@ -253,6 +323,7 @@ const DestinationDetailsScreen = () => {
         showsVerticalScrollIndicator={false}
         bounces={false}
         onScroll={scrollHandler}
+        ref={scrollRef}
         scrollEventThrottle={16}
         style={{ flex: 1 }}
       >
@@ -274,21 +345,21 @@ const DestinationDetailsScreen = () => {
 
           {/* Hero text pinned to bottom */}
           <View className="absolute bottom-5 left-5 right-5">
-            <View className="self-start bg-white/25 rounded-full px-3 py-1 mb-2">
-              <Text className="text-white text-xs font-medium tracking-wide uppercase">
+            <View className="self-start bg-black/30 rounded-full px-3 py-1 mb-2">
+              <Text className="text-white text-xs font-popSb tracking-widest uppercase">
                 {destination.category ?? "Travel"}
               </Text>
             </View>
-            <Text className="text-white text-3xl font-bold leading-tight">
+            <Text className="text-white text-3xl font-popBold leading-tight">
               {destination.name}
             </Text>
-            <View className="flex-row items-center mt-1">
+            <View className="flex-row items-center mt-1.5">
               <Ionicons
                 name="location-sharp"
-                size={14}
-                color="rgba(255,255,255,0.8)"
+                size={13}
+                color="rgba(255,255,255,0.75)"
               />
-              <Text className="text-white/80 text-sm ml-1">
+              <Text className="text-white/75 text-sm ml-1 font-regular">
                 {destination.region ?? "Unknown location"}
               </Text>
             </View>
@@ -298,8 +369,8 @@ const DestinationDetailsScreen = () => {
         {/* ── BODY ── */}
         <View className="px-5 pt-5 pb-36 bg-background">
           {/* Rating row */}
-          <View className="flex-row items-center justify-between mb-5">
-            <View className="flex-row items-center gap-1">
+          <View className="flex-row items-center mb-5">
+            <View className="flex-row items-center gap-1 bg-primary-50 border border-primary-100 rounded-full px-3 py-1.5">
               {Array.from({ length: 5 }).map((_, i) => (
                 <Ionicons
                   key={i}
@@ -310,14 +381,14 @@ const DestinationDetailsScreen = () => {
                         ? "star-half"
                         : "star-outline"
                   }
-                  size={16}
-                  color="#f59e0b"
+                  size={14}
+                  color={Colors.secondary[600]}
                 />
               ))}
-              <Text className="ml-1.5 text-gray-600 text-sm font-medium">
+              <Text className="ml-1 text-dark text-xs font-popSb">
                 {destination.rating?.toFixed(1) ?? "4.5"}
               </Text>
-              <Text className="text-gray-400 text-sm"> · 120 reviews</Text>
+              <Text className="text-muted text-xs font-regular"> · 120 reviews</Text>
             </View>
           </View>
 
@@ -331,10 +402,9 @@ const DestinationDetailsScreen = () => {
               {destination.tags.map((tag, i) => (
                 <View
                   key={i}
-                  className="bg-background rounded-full px-3.5 py-1.5 mx-2 my-4"
-                  style={DefaultStyles.shadow}
+                  className="bg-primary-50 border border-primary-100 rounded-full px-3.5 py-1.5 mx-1.5 my-3"
                 >
-                  <Text className="text-gray-600 text-xs font-medium">
+                  <Text className="text-primary-600 text-xs font-popSb">
                     #{tag}
                   </Text>
                 </View>
@@ -346,8 +416,11 @@ const DestinationDetailsScreen = () => {
           <View className="h-px bg-gray-100 mb-5" />
 
           {/* About */}
-          <Text className="text-base font-bold text-gray-900 mb-2">About</Text>
-          <Text className="text-gray-500 leading-6 text-[15px]">
+          <View className="flex-row items-center gap-2 mb-2">
+            <View className="w-1 h-5 bg-primary-500 rounded-full" />
+            <Text className="text-base font-popBold text-dark">About</Text>
+          </View>
+          <Text className="text-muted leading-6 text-[15px] font-regular">
             {destination.description ??
               "This is a beautiful destination you will love to explore. Enjoy amazing views, culture, and unforgettable experiences."}
           </Text>
@@ -357,6 +430,9 @@ const DestinationDetailsScreen = () => {
             setChatInput={setChatInput}
             messages={messages}
             handleSendChat={handleSendChat}
+            onDeleteMessage={handleDeleteMessage}
+            onDeleteAll={handleDeleteAllChats}
+            streamingMessageId={streamingMessageId}
           />
 
           {/* Map */}
@@ -374,7 +450,7 @@ const DestinationDetailsScreen = () => {
               className="absolute right-2 top-2 bg-background rounded-full p-3 z-10"
               style={DefaultStyles.shadow}
             >
-              <AntDesign name="arrows-alt" size={18} />
+              <AntDesign name="arrows-alt" size={18} color={isDark ? 'white' : 'black'} />
             </View>
             <MapView
               style={{ width: "100%", height: "100%" }}
@@ -402,15 +478,17 @@ const DestinationDetailsScreen = () => {
                 flat={true}
               >
                 <View
-                  style={{
-                    width: 50,
-                    height: 50,
-                    borderRadius: 30,
-                    backgroundColor: Colors.primary[500],
-                    alignItems: "center",
-                    justifyContent: "center",
-                    overflow: "visible",
-                  }}
+                  style={[
+                    {
+                      width: 50,
+                      height: 50,
+                      borderRadius: 30,
+                      backgroundColor: Colors.primary[500],
+                      alignItems: "center",
+                      justifyContent: "center",
+                      overflow: "visible",
+                    },
+                  ]}
                 >
                   <Ionicons name="location" size={30} color="white" />
                 </View>
@@ -422,10 +500,11 @@ const DestinationDetailsScreen = () => {
           {destination.images?.length > 1 && (
             <View className="mt-7">
               <View className="flex-row items-center justify-between mb-3">
-                <Text className="text-base font-bold text-gray-900">
-                  Gallery
-                </Text>
-                <Text className="text-gray-400 text-sm">
+                <View className="flex-row items-center gap-2">
+                  <View className="w-1 h-5 bg-primary-500 rounded-full" />
+                  <Text className="text-base font-popBold text-dark">Gallery</Text>
+                </View>
+                <Text className="text-muted text-xs font-popSb">
                   {destination.images.length} photos
                 </Text>
               </View>
@@ -459,21 +538,35 @@ const DestinationDetailsScreen = () => {
 
       {/* ── BOTTOM CTA ── */}
       <View
-        className="absolute bottom-0 left-0 right-0 bg-white border-t border-gray-100"
-        style={{ paddingBottom: 28, paddingTop: 5, paddingHorizontal: 10 }}
+        className="absolute bottom-0 left-0 right-0 bg-surface border-t border-primary-100"
+        style={{ paddingBottom: 28, paddingTop: 12, paddingHorizontal: 20 }}
       >
-        <Button className="w-full">
-          <Text className="text-white font-bold text-base tracking-wide">
+        <TouchableOpacity
+          className="bg-primary-500 rounded-2xl py-5 items-center"
+          activeOpacity={0.85}
+          onPress={() =>
+            router.push({
+              pathname: "/(modals)/BookingScreen",
+              params: {
+                destinationId: String(destination.id),
+                destinationName: destination.name,
+              },
+            })
+          }
+        >
+          <Text className="text-background font-popBold text-base tracking-wide">
             Book Now
           </Text>
-        </Button>
+        </TouchableOpacity>
       </View>
 
-      <TouchableOpacity className="absolute bottom-28 left-1/2 -translate-x-1/2 p-5 bg-background/75 rounded-full">
-        <BlurView>
-          <Ionicons name="arrow-down" size={16} />
-        </BlurView>
-      </TouchableOpacity>
+      <AnimatedTouchableOpacity
+        className="absolute bottom-32 left-1/2 -translate-x-1/2 p-3 bg-primary rounded-full"
+        style={[DefaultStyles.shadow, touchableOpacityAnimatedStyle]}
+        onPress={() => handleScrollToButtom()}
+      >
+        <Ionicons name="arrow-down" size={18} color="white" />
+      </AnimatedTouchableOpacity>
     </KeyboardAvoidingView>
   );
 };

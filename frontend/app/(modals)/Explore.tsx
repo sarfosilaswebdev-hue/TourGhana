@@ -2,7 +2,7 @@ import DestinationCard from "@/components/Home/DestinationCard";
 import { Colors } from "@/contants/colors";
 import { ALL_TAGS, categories, DefaultStyles } from "@/contants/contants";
 import { useSearch } from "@/context/SearchProvider";
-import { useGetAllDestinations } from "@/hooks/destination.hook";
+import { useGetAllDestinations, useGetFavoriteDestinations } from "@/hooks/destination.hook";
 import { Destination } from "@/Utils/types";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { BlurView } from "expo-blur";
@@ -21,10 +21,15 @@ export default function App() {
   const { searchResult, isFetching,setSearch } = useSearch();
   const headerHeight = useHeaderHeight();
 
+   const { data: favorite } = useGetFavoriteDestinations();
+  
+    const isFavorited = (destinationId: string) => {
+    return favorite?.data?.some((dest: Destination) => dest.id === destinationId) ?? false;
+  };
 
 
   const renderItem = ({ item }: { item: Destination }) => (
-    <DestinationCard item={item} widthIncrement={80} height={250} />
+    <DestinationCard item={item} widthIncrement={80} height={250}  isFavorited={isFavorited}/>
   );
 
   return (

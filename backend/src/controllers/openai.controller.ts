@@ -6,6 +6,7 @@ import NotFoundError from "../errors/NotFoundError";
 import ValidationErrors from "../errors/ValidationError";
 import { catchAsync } from "../utils/catchAsync";
 import AuthError from "../errors/AuthError";
+import ForbiddenError from "../errors/ForbiddenError";
 
 export const generateChatResponse = catchAsync(async (req, res) => {
   const { chat, destinationId, conversationId } = req.body;
@@ -90,6 +91,8 @@ export const generateChatResponse = catchAsync(async (req, res) => {
     - If asked about local culture, mention traditions specific to the ${destination.region || "local"} area.
     - Provide practical tips for visiting this specific spot (transport, best time, entry fees).
     - Maintain a welcoming, proud, and helpful Ghanaian tone.
+    - If you don't know the answer, say you don't know rather than making something up.
+    - Make response concise and informative, ideally under 200 words, but feel free to be more detailed if the question warrants it.
   `;
 
   // --- Stream AI response ---
@@ -134,13 +137,68 @@ export const generateChatResponse = catchAsync(async (req, res) => {
   });
 });
 
+export const deleteMessage = catchAsync(async (req, res) => {
+  const { userId } = getAuth(req);
+  const rawMessageId = req.params.messageId;
+
+  if (!rawMessageId || typeof rawMessageId !== "string") {
+    throw new ValidationErrors({
+      details: { messageId: "Message ID is required and must be a string" },
+    });
+  }
+
+  const messageId = rawMessageId;
+
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId as string },
+  });
+  if (!user) throw new AuthError("user not authenticated");
+
+  const message = await prisma.message.findUnique({
+    where: { id: messageId },
+    include: { conversation: { select: { userId: true } } },
+  });
+
+  if (!message) throw new NotFoundError("Message");
+  if (message.conversation.userId !== user.id) throw new ForbiddenError();
+
+  await prisma.message.delete({ where: { id: messageId } });
+
+  res.status(200).json({ message: "Message deleted" });
+});
+
+export const deleteAllChats = catchAsync(async (req, res) => {
+  const { userId } = getAuth(req);
+  let { destinationId } = req.query;
+
+  if (!destinationId || typeof destinationId !== "string") {
+    throw new ValidationErrors({
+      details: { destinationId: "Destination ID is required" },
+    });
+  }
+  destinationId = destinationId as string;
+
+  const user = await prisma.user.findUnique({
+    where: { clerkId: userId as string },
+  });
+  if (!user) throw new AuthError("user not authenticated");
+
+  await prisma.conversation.deleteMany({
+    where: { userId: user.id, destinationId },
+  });
+
+  res.status(200).json({ message: "All chats deleted" });
+});
+
 export const getConversations = catchAsync(async (req, res) => {
   const { userId } = getAuth(req);
   const { destinationId } = req.query;
 
   if (!destinationId || typeof destinationId !== "string") {
     throw new ValidationErrors({
-      details: { destinationId: "Destination ID is required and must be a string" },
+      details: {
+        destinationId: "Destination ID is required and must be a string",
+      },
     });
   }
 
@@ -163,7 +221,8 @@ export const getConversations = catchAsync(async (req, res) => {
   const messages = conversations.flatMap((c) => c.messages);
 
   // Use the most recent conversation's id for continuing the chat
-  const latestConversationId = conversations[conversations.length - 1]?.id ?? null;
+  const latestConversationId =
+    conversations[conversations.length - 1]?.id ?? null;
 
   res.status(200).json({ messages, conversationId: latestConversationId });
 });

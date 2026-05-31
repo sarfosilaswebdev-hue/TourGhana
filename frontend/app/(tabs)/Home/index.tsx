@@ -1,101 +1,204 @@
 import {
   View,
   Text,
-  ScrollView,
   TouchableOpacity,
   FlatList,
-  Image,
+  ActivityIndicator,
   Dimensions,
+  StyleSheet,
 } from "react-native";
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useUser } from "@/hooks/user.hook";
-import { SafeAreaView } from "react-native-safe-area-context";
-import { categories } from "@/contants/contants";
 import { Category, Destination } from "@/Utils/types";
-import Animated, {
-  FadeIn,
-  FadeInDown,
-  FadeInUp,
-} from "react-native-reanimated";
-import { useGetAllDestinations } from "@/hooks/destination.hook";
+import Animated, { FadeIn, FadeInDown, FadeInUp } from "react-native-reanimated";
+import { useGetAllDestinations, useGetFavoriteDestinations } from "@/hooks/destination.hook";
 import DestinationCard from "@/components/Home/DestinationCard";
+import { Ionicons } from "@expo/vector-icons";
+import { useTheme, AppColors } from "@/context/ThemeContext";
 
 type CategoryFilter = "All" | Category;
+
+const STEP = 6;
+const { width } = Dimensions.get("window");
+
+const CATEGORY_META: {
+  label: CategoryFilter;
+  icon: keyof typeof Ionicons.glyphMap;
+  short: string;
+}[] = [
+  { label: "All",               icon: "grid",   short: "All"     },
+  { label: Category.NATURE,     icon: "leaf",   short: "Nature"  },
+  { label: Category.CULTURAL,   icon: "people", short: "Culture" },
+  { label: Category.HISTORICAL, icon: "time",   short: "History" },
+  { label: Category.ADVENTURE,  icon: "flash",  short: "Adventure"},
+  { label: Category.BEACH,      icon: "water",  short: "Beach"   },
+];
 
 const index = () => {
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>("All");
   const [viewHeight, setViewHeight] = useState<number>(0);
   const viewRef = useRef<View | null>(null);
   const [isAbove, setIsAbove] = useState<boolean>(true);
+  const [limit, setLimit] = useState(STEP);
 
-  const { data } = useGetAllDestinations({
-    category: activeCategory,
-  });
+  const { isDark, colors: C } = useTheme();
+  const styles = useMemo(() => createStyles(C, isDark), [isDark]);
+
+  const { data, isFetching } = useGetAllDestinations({ category: activeCategory, limit });
   const destinations = data?.destinations || [];
+  const hasMore = destinations.length >= limit;
+
+  const { data: favorite } = useGetFavoriteDestinations();
+  const isFavorited = (destinationId: string) =>
+    favorite?.data?.some((dest: Destination) => dest.id === destinationId) ?? false;
 
   const handleSelectCategory = (cat: CategoryFilter, event: any) => {
     const { pageY } = event.nativeEvent;
-
-    console.log("Clicked Y:", pageY);
-    console.log("Container height:", viewHeight);
-
-    if (pageY > viewHeight/2) {
-      setIsAbove(false);
-    }else{
-       setIsAbove(true);
-    }
-
+    setIsAbove(pageY <= viewHeight / 2);
+    setLimit(STEP);
     setActiveCategory(cat);
   };
 
   const renderItem = ({ item }: { item: Destination }) => (
     <Animated.View entering={isAbove ? FadeInUp : FadeInDown}>
-      <DestinationCard item={item} />
+      <DestinationCard item={item} isFavorited={isFavorited} />
     </Animated.View>
   );
+
   return (
     <View
-      className="flex-1 bg-background flex-row"
+      style={styles.root}
       onLayout={(e) => setViewHeight(e.nativeEvent.layout.height)}
     >
-      <View className=" justify-between py-10 items-center">
-        {categories.map((cat, index) => (
-          <TouchableOpacity
-            className="-rotate-90 items-center"
-            onPress={(e) => handleSelectCategory(cat, e)}
-            key={cat}
-          >
-            <Text
-              className={`font-popSb ${activeCategory === cat && "text-secondary-600"}`}
-            >
-              {cat}
-            </Text>
-            {activeCategory === cat && (
-              <Animated.View
-                entering={FadeIn.delay(100)}
-                className="w-5 h-1 bg-secondary-600 rounded-full"
-              />
-            )}
-          </TouchableOpacity>
-        ))}
+      {/* ── Category sidebar ── */}
+      <View style={styles.sidebar}>
+        {CATEGORY_META.map(({ label, icon, short }, i) => {
+          const isActive = activeCategory === label;
+          return (
+            <Animated.View key={label} entering={FadeIn.delay(i * 60)}>
+              <TouchableOpacity
+                onPress={(e) => handleSelectCategory(label, e)}
+                activeOpacity={0.7}
+                style={styles.catBtn}
+              >
+                <View style={[styles.catIconWrap, isActive && styles.catIconWrapActive]}>
+                  <Ionicons
+                    name={isActive ? icon : (`${icon}-outline` as any)}
+                    size={20}
+                    color={isActive ? "#fff" : C.muted}
+                  />
+                </View>
+                <Text
+                  style={[styles.catLabel, isActive && styles.catLabelActive]}
+                  numberOfLines={1}
+                >
+                  {short}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
+          );
+        })}
       </View>
 
-      <FlatList
-        data={destinations as Destination[]}
-        horizontal
-        className="flex-1"
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(item, index) => item.id}
-        renderItem={renderItem}
-        initialNumToRender={5}
-        contentContainerStyle={{
-          paddingHorizontal: 5,
-          paddingVertical: 5,
-          alignItems: "center",
-        }}
-      />
+      {/* ── Cards area ── */}
+      <View style={{ flex: 1 }}>
+        {/* Destination count */}
+        <View style={{ paddingTop: 5, paddingBottom: 8, paddingHorizontal: 4 }}>
+          <View style={styles.countPill}>
+            <Ionicons name="location" size={13} color={C.primary[500]} />
+            <Text style={styles.countText}>
+              {destinations.length} spot{destinations.length !== 1 ? "s" : ""}
+            </Text>
+          </View>
+        </View>
+
+        <FlatList
+          data={destinations as Destination[]}
+          horizontal
+          style={{ flex: 1 }}
+          showsHorizontalScrollIndicator={false}
+          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          initialNumToRender={5}
+          ListFooterComponent={
+            hasMore ? (
+              <TouchableOpacity
+                onPress={() => setLimit((prev) => prev + STEP)}
+                disabled={isFetching}
+                style={styles.loadMoreCard}
+                activeOpacity={0.7}
+              >
+                {isFetching ? (
+                  <ActivityIndicator size="large" color={C.primary[500]} />
+                ) : (
+                  <>
+                    <View style={styles.loadMoreIcon}>
+                      <Ionicons name="arrow-forward" size={22} color={C.primary[500]} />
+                    </View>
+                    <Text style={styles.loadMoreText}>Load more</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            ) : null
+          }
+          contentContainerStyle={{
+            paddingHorizontal: 5,
+            paddingVertical: 5,
+            alignItems: "center",
+          }}
+        />
+      </View>
     </View>
   );
 };
+
+const createStyles = (C: AppColors, isDark: boolean) =>
+  StyleSheet.create({
+    root: {
+      flex: 1,
+      backgroundColor: C.background,
+      flexDirection: "row",
+    },
+    sidebar: {
+      width: 62,
+      justifyContent: "space-between",
+      alignItems: "center",
+      paddingVertical: 40,
+    },
+    catBtn: { alignItems: "center", gap: 5 },
+    catIconWrap: {
+      width: 42, height: 42, borderRadius: 13,
+      alignItems: "center", justifyContent: "center",
+      backgroundColor: "transparent",
+    },
+    catIconWrapActive: { backgroundColor: C.primary[500] },
+    catLabel: {
+      fontSize: 9, fontFamily: "PoppinsSemiBold",
+      color: C.muted, textAlign: "center", width: 54,
+    },
+    catLabelActive: { color: C.primary[600] },
+
+    countPill: {
+      flexDirection: "row", alignItems: "center", gap: 5,
+      alignSelf: "flex-end",
+      backgroundColor: C.primary[50], borderRadius: 20,
+      paddingHorizontal: 12, paddingVertical: 6,
+      borderWidth: 1, borderColor: C.primary[100],
+    },
+    countText: { fontFamily: "PoppinsSemiBold", fontSize: 12, color: C.primary[600] },
+
+    loadMoreCard: {
+      width: width * 0.35, height: "100%", marginRight: 8,
+      borderRadius: 12, alignSelf: "center",
+      alignItems: "center", justifyContent: "center", gap: 10,
+      borderWidth: 2, borderColor: C.primary[100],
+      borderStyle: "dashed",
+    },
+    loadMoreIcon: {
+      width: 48, height: 48, borderRadius: 24,
+      backgroundColor: C.primary[50], alignItems: "center", justifyContent: "center",
+    },
+    loadMoreText: { fontFamily: "PoppinsSemiBold", fontSize: 13, color: C.primary[600] },
+  });
 
 export default index;

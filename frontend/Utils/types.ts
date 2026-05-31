@@ -46,5 +46,42 @@ export interface Message {
   id?: string;
   role: MessageRole;
   content: string;
- 
+  createdAt?: string;
+}
+
+export type BookingStatus = "PENDING" | "CONFIRMED" | "CANCELLED";
+
+export interface Booking {
+  id: string;
+  destinationId: string;
+  destination: Destination;
+  tourDate: string;
+  groupSize: number;
+  fullName: string;
+  email: string;
+  phone: string;
+  specialRequest?: string;
+  status: BookingStatus;
+  createdAt: string;
+}
+
+export interface CreateBookingPayload {
+  destinationId: string;
+  tourDate: string;
+  groupSize: number;
+  fullName: string;
+  email: string;
+  phone: string;
+  specialRequest?: string;
+}
+
+export interface Review {
+  id: string;
+  rating: number;
+  comment?: string;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+  destinationId: string;
+  destination?: Destination;
 }

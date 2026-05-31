@@ -5,7 +5,7 @@ import { ClerkProvider } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import AuthProvider from "@/context/AuthProvider";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-
+import { ThemeProvider, useTheme } from "@/context/ThemeContext";
 import { useUser } from "@/hooks/user.hook";
 
 import ExploreHeader from "@/components/Headers/ExploreHeader";
@@ -24,7 +24,7 @@ if (!publishableKey) {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 5, // ✅ 5 minutes
+      staleTime: 1000 * 60 * 5,
     },
   },
 });
@@ -41,11 +41,13 @@ export default function RootLayout() {
   return (
     <ClerkProvider publishableKey={publishableKey} tokenCache={tokenCache}>
       <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <SearchProvider>
-            <InitialRootLayout />
-          </SearchProvider>
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <SearchProvider>
+              <InitialRootLayout />
+            </SearchProvider>
+          </AuthProvider>
+        </ThemeProvider>
       </QueryClientProvider>
     </ClerkProvider>
   );
@@ -54,6 +56,7 @@ export default function RootLayout() {
 const InitialRootLayout = () => {
   const { data: user } = useUser();
   const router = useRouter();
+  const { isDark } = useTheme();
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
@@ -81,7 +84,7 @@ const InitialRootLayout = () => {
         options={{
           headerTitle: "",
           headerTransparent: false,
-          headerBackTitle:''
+          headerBackTitle: "",
         }}
       />
       <Stack.Screen
@@ -90,15 +93,31 @@ const InitialRootLayout = () => {
           animation: "fade",
           headerTransparent: true,
           headerRight: () => (
-            <TouchableOpacity className="w-10 h-10 bg-background rounded-full items-center justify-center"  style={[DefaultStyles.shadow]} onPress={() => router.back()}>
-              <Ionicons name="close" size={24} color={'black'} />
+            <TouchableOpacity
+              className="w-10 h-10 bg-background rounded-full items-center justify-center"
+              style={[DefaultStyles.shadow]}
+              onPress={() => router.back()}
+            >
+              <Ionicons name="close" size={24} color={isDark ? 'white' : 'black'} />
             </TouchableOpacity>
           ),
           headerTitle: "",
-          headerLeft: () =><View/>,
+          headerLeft: () => <View />,
           gestureEnabled: true,
           gestureDirection: "horizontal",
         }}
+      />
+      <Stack.Screen
+        name="(modals)/BookingScreen"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="(modals)/BookingConfirmation"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="(modals)/MyReviews"
+        options={{ headerShown: false, presentation: "modal" }}
       />
     </Stack>
   );

@@ -8,24 +8,27 @@ import {
   getUserFavorites,
   removeFromFavorites,
 } from "../controllers/destinations.controller";
+
 const router = Router();
 
+// GET /destinations
 router.get("/", getAllDestinations);
-//GET /destinations/:id
 
+// GET /destinations/category/:category
+router.get("/category/:category", getDestinationByCategory);
+
+// POST /destinations
+router.post("/", createDestination);
+
+// Favorites
+router.post("/favorite/:destinationId", addToFavorites);
+
+router.delete("/favorite/:destinationId", removeFromFavorites);
+
+// GET /destinations/favorites
+router.get("/favorites", getUserFavorites);
+
+// GET /destinations/:id
 router.get("/:id", getDestinationById);
-
-//GET /destinations?category=NATURE
-
-router.get("/destinations/category/:category", getDestinationByCategory);
-
-//POST /destinations
-router.post("/destinations", createDestination);
-
-router.post("/favorite/:destinationId",addToFavorites);
-
-router.delete("/favorite/:destinationId",removeFromFavorites);
-
-router.get("/favorites", getUserFavorites)
 
 export default router;

@@ -1,6 +1,6 @@
 import { apiCall } from "@/api/apicall";
 import { useAuth } from "@clerk/expo";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 type SendChatParams = {
   destinationId: string;
@@ -74,6 +74,40 @@ export const useSendChat = () => {
   };
 
   return { sendChat };
+};
+
+export const useDeleteMessage = () => {
+  const queryClient = useQueryClient();
+  const { getToken } = useAuth();
+  return useMutation({
+    mutationFn: async (messageId: string) => {
+      const token = await getToken();
+      return apiCall(`/openai/messages/${messageId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
+};
+
+export const useDeleteAllChats = () => {
+  const queryClient = useQueryClient();
+  const { getToken } = useAuth();
+  return useMutation({
+    mutationFn: async (destinationId: string) => {
+      const token = await getToken();
+      return apiCall(`/openai/conversations?destinationId=${destinationId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["conversations"] });
+    },
+  });
 };
 
 export const useGetConversations = (destinationId: string) => {

@@ -6,9 +6,13 @@ import { useGetDestinationById } from '@/hooks/destination.hook';
 import { Destination } from '@/Utils/types';
 import { Colors } from '@/contants/colors';
 import { Ionicons } from '@expo/vector-icons';
+import { useTheme } from '@/context/ThemeContext';
 
 const MapContainerView = () => {
     const { DestinationId } = useLocalSearchParams();
+    const {isDark} = useTheme();
+    
+
 
     
   if (!DestinationId) return null;
