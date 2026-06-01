@@ -9,6 +9,7 @@ import {
   StyleSheet,
 } from "react-native";
 import React, { useState } from "react";
+import * as Haptics from "expo-haptics";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { Ionicons } from "@expo/vector-icons";
@@ -53,11 +54,13 @@ const BookingScreen = () => {
         phone,
         specialRequest,
       });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       router.replace({
         pathname: "/(modals)/BookingConfirmation",
         params: { bookingId: booking.data.id },
       });
     } catch {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       setError("Failed to create booking. Please try again.");
     }
   }
@@ -116,7 +119,7 @@ const BookingScreen = () => {
             Tour Date
           </Text>
           <TouchableOpacity
-            onPress={() => setShowDatePicker(true)}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setShowDatePicker(true); }}
             className="flex-row items-center bg-primary-50 border border-primary-100 rounded-xl px-4 py-3.5"
             activeOpacity={0.8}
           >
@@ -149,7 +152,7 @@ const BookingScreen = () => {
             className="flex-row items-center bg-primary-50 border border-primary-100 rounded-xl overflow-hidden"
           >
             <TouchableOpacity
-              onPress={() => setGroupSize((n) => Math.max(1, n - 1))}
+              onPress={() => { Haptics.selectionAsync(); setGroupSize((n) => Math.max(1, n - 1)); }}
               className="w-14 h-16 items-center justify-center bg-primary-100"
               activeOpacity={0.7}
             >
@@ -161,7 +164,7 @@ const BookingScreen = () => {
             </TouchableOpacity>
 
             <View className="flex-1 items-center">
-              <Text className="font-popBold text-dark text-3xl leading-9">
+              <Text className="font-popBold text-black text-3xl leading-9">
                 {groupSize}
               </Text>
               <Text className="font-regular text-muted" style={{ fontSize: 9, letterSpacing: 2 }}>
@@ -170,7 +173,7 @@ const BookingScreen = () => {
             </View>
 
             <TouchableOpacity
-              onPress={() => setGroupSize((n) => n + 1)}
+              onPress={() => { Haptics.selectionAsync(); setGroupSize((n) => n + 1); }}
               className="w-14 h-16 items-center justify-center bg-primary-100"
               activeOpacity={0.7}
             >

@@ -9,6 +9,7 @@ import {
   View,
 } from "react-native";
 import React, { useRef, useState } from "react";
+import * as Haptics from "expo-haptics";
 import { onboardingContent } from "@/contants/onboardingContent";
 import SlideContent from "./SlideContent";
 import Pagination from "./Pagination";
@@ -80,6 +81,7 @@ const Onboarding = () => {
             title={item.title}
             description={item.description}
             image={item.image}
+            isActive={index === activeIndex}
           />
         ))}
       </Animated.ScrollView>
@@ -108,7 +110,7 @@ const Onboarding = () => {
               {/* Google */}
               <TouchableOpacity
                 style={[styles.goldButton, !!loadingStrategy && styles.dimmed]}
-                onPress={() => handleSocialAuth("oauth_google")}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleSocialAuth("oauth_google"); }}
                 disabled={!!loadingStrategy}
                 activeOpacity={0.82}
               >
@@ -131,7 +133,7 @@ const Onboarding = () => {
                     styles.ghostButton,
                     !!loadingStrategy && styles.dimmed,
                   ]}
-                  onPress={() => handleSocialAuth("oauth_apple")}
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); handleSocialAuth("oauth_apple"); }}
                   disabled={!!loadingStrategy}
                   activeOpacity={0.82}
                 >
@@ -152,7 +154,7 @@ const Onboarding = () => {
             <>
               <TouchableOpacity
                 style={styles.goldButton}
-                onPress={handleNext}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleNext(); }}
                 activeOpacity={0.82}
               >
                 <Text style={styles.goldButtonText}>
@@ -162,7 +164,7 @@ const Onboarding = () => {
 
               <TouchableOpacity
                 style={styles.skipButton}
-                onPress={handleSkip}
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleSkip(); }}
                 activeOpacity={0.6}
               >
                 <Text style={styles.skipText}>Skip for now</Text>

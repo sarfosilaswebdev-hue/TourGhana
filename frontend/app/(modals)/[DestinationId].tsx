@@ -1,8 +1,6 @@
 import {
-  ActivityIndicator,
   Dimensions,
   Image,
-  ImageStyle,
   KeyboardAvoidingView,
   NativeScrollEvent,
   NativeSyntheticEvent,
@@ -14,6 +12,7 @@ import {
   StyleSheet,
 } from "react-native";
 import React, { useEffect, useLayoutEffect, useState } from "react";
+import * as Haptics from "expo-haptics";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useGetDestinationById } from "@/hooks/destination.hook";
 import { Destination, Message, MessageRole } from "@/Utils/types";
@@ -24,6 +23,8 @@ import { Colors } from "@/contants/colors";
 import { DefaultStyles } from "@/contants/contants";
 import { useNavigation } from "@react-navigation/native";
 import ChatCard from "@/components/ui/ChatCard";
+import { SkeletonBlock } from "@/components/ui/Skeleton";
+import DestinationDetailSkeleton from "@/components/skeletons/DestinationDetailSkeleton";
 import { useGetConversations, useSendChat, useDeleteMessage, useDeleteAllChats } from "@/hooks/chat.hook";
 import Animated, {
   interpolate,
@@ -33,7 +34,6 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { BlurView } from "expo-blur";
 import { useTheme, useThemeColors } from "@/context/ThemeContext";
 
 const { width } = Dimensions.get("window");
@@ -41,7 +41,13 @@ const { width } = Dimensions.get("window");
 const IMAGE_HEIGHT = 430;
 
 const DestinationDetailsScreen = () => {
-  const { DestinationId } = useLocalSearchParams();
+  const { DestinationId, imageUrl } =
+    useLocalSearchParams<{
+      DestinationId: string;
+      imageUrl?: string;
+      name?: string;
+      region?: string;
+    }>();
   const router = useRouter();
   const navigation = useNavigation();
   const C = useThemeColors();
@@ -147,23 +153,26 @@ const DestinationDetailsScreen = () => {
 
   // ── navigation.setOptions must live in useLayoutEffect, never in render ──
   useLayoutEffect(() => {
+    const borderColor = isDark ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.15)";
+    const iconColor = 'white';
+
     navigation.setOptions({
       headerRight: () => (
         <TouchableOpacity
           className="p-2 bg-background/60 rounded-full"
-          onPress={() => setFavourited((prev) => !prev)}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); setFavourited((prev) => !prev); }}
           style={[
             DefaultStyles.shadow,
             {
               borderWidth: StyleSheet.hairlineWidth,
-              borderColor: "rgba(0,0,0,0.2)",
+              borderColor,
             },
           ]}
         >
           <Ionicons
             name="bookmark"
             size={24}
-            color={favourited ? Colors.primary[500] : "rgba(0,0,0,0.8)"}
+            color={favourited ? Colors.primary[500] : iconColor}
           />
         </TouchableOpacity>
       ),
@@ -175,15 +184,15 @@ const DestinationDetailsScreen = () => {
             DefaultStyles.shadow,
             {
               borderWidth: StyleSheet.hairlineWidth,
-              borderColor: "rgba(0,0,0,0.2)",
+              borderColor,
             },
           ]}
         >
-          <Ionicons name="arrow-back" size={24} color="rgba(0,0,0,0.8)" />
+          <Ionicons name="arrow-back" size={24} color={iconColor} />
         </TouchableOpacity>
       ),
       headerTransparent: true,
-      headerShown: !isFetching,
+      headerShown: true,
       headerBackground: () => (
         <Animated.View
           className="bg-background"
@@ -194,7 +203,7 @@ const DestinationDetailsScreen = () => {
         />
       ),
     });
-  }, [favourited, isFetching]);
+  }, [favourited, isDark, C]);
 
   const sleep = (ms: number) =>
     new Promise((resolve) => setTimeout(resolve, ms));
@@ -274,18 +283,7 @@ const DestinationDetailsScreen = () => {
   // ── Early returns only after all hooks ──
   if (!DestinationId) return null;
 
-  if (isFetching) {
-    return (
-      <View className="flex-1 items-center justify-center bg-white">
-        <ActivityIndicator size="large" color="#000" />
-        <Text className="mt-3 text-gray-400 text-sm">
-          Loading destination...
-        </Text>
-      </View>
-    );
-  }
-
-  if (!destination) {
+  if (!isFetching && !destination) {
     return (
       <View className="flex-1 items-center justify-center bg-white">
         <Ionicons name="map-outline" size={48} color="#ccc" />
@@ -302,8 +300,8 @@ const DestinationDetailsScreen = () => {
     );
   }
 
-  const fullStars = Math.floor(destination.rating ?? 4.5);
-  const hasHalfStar = (destination.rating ?? 4.5) % 1 >= 0.5;
+  const fullStars = Math.floor(destination?.rating ?? 4.5);
+  const hasHalfStar = (destination?.rating ?? 4.5) % 1 >= 0.5;
 
   function handleScrollToButtom() {
     if (scrollRef.current) {
@@ -331,10 +329,9 @@ const DestinationDetailsScreen = () => {
         <Animated.View style={{ height: IMAGE_HEIGHT }} className="relative">
           <Animated.Image
             source={{
-              uri: optimizeImage(destination.images[0], {
-                width: 800,
-                quality: 80,
-              }),
+              uri: isFetching
+                ? (imageUrl ?? undefined)
+                : optimizeImage(destination!.images[0], { width: 800, quality: 80 }),
             }}
             style={[
               { width, height: IMAGE_HEIGHT, position: "absolute" },
@@ -345,30 +342,43 @@ const DestinationDetailsScreen = () => {
 
           {/* Hero text pinned to bottom */}
           <View className="absolute bottom-5 left-5 right-5">
-            <View className="self-start bg-black/30 rounded-full px-3 py-1 mb-2">
-              <Text className="text-white text-xs font-popSb tracking-widest uppercase">
-                {destination.category ?? "Travel"}
-              </Text>
-            </View>
-            <Text className="text-white text-3xl font-popBold leading-tight">
-              {destination.name}
-            </Text>
-            <View className="flex-row items-center mt-1.5">
-              <Ionicons
-                name="location-sharp"
-                size={13}
-                color="rgba(255,255,255,0.75)"
-              />
-              <Text className="text-white/75 text-sm ml-1 font-regular">
-                {destination.region ?? "Unknown location"}
-              </Text>
-            </View>
+            {isFetching ? (
+              <View style={{ gap: 8 }}>
+                <SkeletonBlock width={80} height={20} borderRadius={20} />
+                <SkeletonBlock width={220} height={36} borderRadius={8} />
+                <SkeletonBlock width={120} height={16} borderRadius={6} />
+              </View>
+            ) : (
+              <>
+                <View className="self-start bg-black/30 rounded-full px-3 py-1 mb-2">
+                  <Text className="text-white text-xs font-popSb tracking-widest uppercase">
+                    {destination!.category ?? "Travel"}
+                  </Text>
+                </View>
+                <Text className="text-white text-3xl font-popBold leading-tight">
+                  {destination!.name}
+                </Text>
+                <View className="flex-row items-center mt-1.5">
+                  <Ionicons
+                    name="location-sharp"
+                    size={13}
+                    color="rgba(255,255,255,0.75)"
+                  />
+                  <Text className="text-white/75 text-sm ml-1 font-regular">
+                    {destination!.region ?? "Unknown location"}
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
         </Animated.View>
 
         {/* ── BODY ── */}
         <View className="px-5 pt-5 pb-36 bg-background">
-          {/* Rating row */}
+          {isFetching ? (
+            <DestinationDetailSkeleton />
+          ) : (
+          <>{/* Rating row */}
           <View className="flex-row items-center mb-5">
             <View className="flex-row items-center gap-1 bg-primary-50 border border-primary-100 rounded-full px-3 py-1.5">
               {Array.from({ length: 5 }).map((_, i) => (
@@ -386,20 +396,20 @@ const DestinationDetailsScreen = () => {
                 />
               ))}
               <Text className="ml-1 text-dark text-xs font-popSb">
-                {destination.rating?.toFixed(1) ?? "4.5"}
+                {destination?.rating?.toFixed(1) ?? "4.5"}
               </Text>
               <Text className="text-muted text-xs font-regular"> · 120 reviews</Text>
             </View>
           </View>
 
           {/* Tags */}
-          {destination.tags?.length > 0 && (
+          {(destination?.tags?.length ?? 0) > 0 && (
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               className="mb-5 -mx-1"
             >
-              {destination.tags.map((tag, i) => (
+              {(destination?.tags ?? []).map((tag, i) => (
                 <View
                   key={i}
                   className="bg-primary-50 border border-primary-100 rounded-full px-3.5 py-1.5 mx-1.5 my-3"
@@ -421,7 +431,7 @@ const DestinationDetailsScreen = () => {
             <Text className="text-base font-popBold text-dark">About</Text>
           </View>
           <Text className="text-muted leading-6 text-[15px] font-regular">
-            {destination.description ??
+            {destination?.description ??
               "This is a beautiful destination you will love to explore. Enjoy amazing views, culture, and unforgettable experiences."}
           </Text>
 
@@ -438,12 +448,13 @@ const DestinationDetailsScreen = () => {
           {/* Map */}
           <TouchableOpacity
             className="w-full h-[400px] rounded-xl overflow-hidden my-5 relative"
-            onPress={() =>
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push({
                 pathname: "/(modals)/MapContainerView",
-                params: { DestinationId: String(destination.id) },
-              })
-            }
+                params: { DestinationId: String(destination!.id) },
+              });
+            }}
             style={DefaultStyles.shadow}
           >
             <View
@@ -462,16 +473,16 @@ const DestinationDetailsScreen = () => {
               rotateEnabled={false}
               showsBuildings={true}
               initialRegion={{
-                latitude: destination.latitude,
-                longitude: destination.longitude,
+                latitude: destination!.latitude,
+                longitude: destination!.longitude,
                 latitudeDelta: 0.01,
                 longitudeDelta: 0.01,
               }}
             >
               <Marker
                 coordinate={{
-                  latitude: destination.latitude,
-                  longitude: destination.longitude,
+                  latitude: destination!.latitude,
+                  longitude: destination!.longitude,
                 }}
                 anchor={{ x: 0.5, y: 0.5 }}
                 tracksViewChanges={false}
@@ -497,7 +508,7 @@ const DestinationDetailsScreen = () => {
           </TouchableOpacity>
 
           {/* Gallery */}
-          {destination.images?.length > 1 && (
+          {(destination!.images?.length ?? 0) > 1 && (
             <View className="mt-7">
               <View className="flex-row items-center justify-between mb-3">
                 <View className="flex-row items-center gap-2">
@@ -505,7 +516,7 @@ const DestinationDetailsScreen = () => {
                   <Text className="text-base font-popBold text-dark">Gallery</Text>
                 </View>
                 <Text className="text-muted text-xs font-popSb">
-                  {destination.images.length} photos
+                  {destination!.images.length} photos
                 </Text>
               </View>
               <ScrollView
@@ -517,7 +528,7 @@ const DestinationDetailsScreen = () => {
                   setActiveImageIndex(index);
                 }}
               >
-                {destination.images.map((img, index) => (
+                {destination!.images.map((img, index) => (
                   <View
                     key={index}
                     className="mx-1 overflow-hidden rounded-2xl"
@@ -533,32 +544,36 @@ const DestinationDetailsScreen = () => {
               </ScrollView>
             </View>
           )}
+          </>)}
         </View>
       </Animated.ScrollView>
 
       {/* ── BOTTOM CTA ── */}
-      <View
-        className="absolute bottom-0 left-0 right-0 bg-surface border-t border-primary-100"
-        style={{ paddingBottom: 28, paddingTop: 12, paddingHorizontal: 20 }}
-      >
-        <TouchableOpacity
-          className="bg-primary-500 rounded-2xl py-5 items-center"
-          activeOpacity={0.85}
-          onPress={() =>
-            router.push({
-              pathname: "/(modals)/BookingScreen",
-              params: {
-                destinationId: String(destination.id),
-                destinationName: destination.name,
-              },
-            })
-          }
+      {!isFetching && destination && (
+        <View
+          className="absolute bottom-0 left-0 right-0 bg-surface border-t border-primary-100"
+          style={{ paddingBottom: 28, paddingTop: 12, paddingHorizontal: 20 }}
         >
-          <Text className="text-background font-popBold text-base tracking-wide">
-            Book Now
-          </Text>
-        </TouchableOpacity>
-      </View>
+          <TouchableOpacity
+            className="bg-primary-500 rounded-2xl py-5 items-center"
+            activeOpacity={0.85}
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              router.push({
+                pathname: "/(modals)/BookingScreen",
+                params: {
+                  destinationId: String(destination.id),
+                  destinationName: destination.name,
+                },
+              });
+            }}
+          >
+            <Text className="text-white font-popBold text-base tracking-wide">
+              Book Now
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <AnimatedTouchableOpacity
         className="absolute bottom-32 left-1/2 -translate-x-1/2 p-3 bg-primary rounded-full"

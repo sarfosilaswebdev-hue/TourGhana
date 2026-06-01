@@ -212,6 +212,35 @@ export const createDestination = catchAsync(async (req, res) => {
   res.status(201).json({ status: "success", data: destination });
 });
 
+export const updateDestination = catchAsync(async (req, res) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const { name, description, region, category, latitude, longitude, rating, tags, images } = req.body;
+
+  const destination = await prisma.destination.findUnique({ where: { id } });
+  if (!destination) {
+    return res.status(404).json({ status: "fail", message: "Destination not found" });
+  }
+
+  const updated = await prisma.destination.update({
+    where: { id },
+    data: { name, description, region, category, latitude, longitude, rating, tags, images },
+  });
+
+  res.status(200).json({ status: "success", data: updated });
+});
+
+export const deleteDestination = catchAsync(async (req, res) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+
+  const destination = await prisma.destination.findUnique({ where: { id } });
+  if (!destination) {
+    return res.status(404).json({ status: "fail", message: "Destination not found" });
+  }
+
+  await prisma.destination.delete({ where: { id } });
+  res.status(200).json({ status: "success", message: "Destination deleted" });
+});
+
 export const addToFavorites = catchAsync(async (req, res) => {
   const rawDestinationId = req.params.destinationId;
   const destinationId = Array.isArray(rawDestinationId)

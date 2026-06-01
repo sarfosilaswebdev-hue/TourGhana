@@ -1,6 +1,7 @@
 import { useThemeColors, AppColors } from "@/context/ThemeContext";
 import { Message, MessageRole } from "@/Utils/types";
 import { AntDesign, Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import React, { useEffect, useMemo, useRef } from "react";
 import {
   Alert,
@@ -198,7 +199,7 @@ const ChatCard = ({
         </View>
         {sorted.length > 0 && (
           <TouchableOpacity
-            onPress={confirmDeleteAll}
+            onPress={() => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning); confirmDeleteAll(); }}
             style={styles.clearBtn}
             activeOpacity={0.7}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -219,7 +220,7 @@ const ChatCard = ({
               key={i}
               style={styles.suggestionBtn}
               activeOpacity={0.75}
-              onPress={() => setChatInput(q)}
+              onPress={() => { Haptics.selectionAsync(); setChatInput(q); }}
             >
               <Ionicons
                 name="chatbubble-ellipses-outline"
@@ -256,7 +257,7 @@ const ChatCard = ({
 
             return (
               <TouchableOpacity
-                onLongPress={() => confirmDeleteMessage(msg)}
+                onLongPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy); confirmDeleteMessage(msg); }}
                 activeOpacity={0.85}
                 delayLongPress={400}
               >
@@ -333,7 +334,7 @@ const ChatCard = ({
             styles.sendBtn,
             (!chatInput.trim() || !!streamingMessageId) && styles.sendBtnDisabled,
           ]}
-          onPress={handleSendChat}
+          onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); handleSendChat(); }}
           activeOpacity={0.8}
           disabled={!chatInput.trim() || !!streamingMessageId}
         >

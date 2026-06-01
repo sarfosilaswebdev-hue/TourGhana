@@ -3,11 +3,11 @@ import {
   Text,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   Dimensions,
   StyleSheet,
 } from "react-native";
 import React, { useMemo, useRef, useState } from "react";
+import * as Haptics from "expo-haptics";
 import { useUser } from "@/hooks/user.hook";
 import { Category, Destination } from "@/Utils/types";
 import Animated, { FadeIn, FadeInDown, FadeInUp } from "react-native-reanimated";
@@ -15,8 +15,11 @@ import { useGetAllDestinations, useGetFavoriteDestinations } from "@/hooks/desti
 import DestinationCard from "@/components/Home/DestinationCard";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme, AppColors } from "@/context/ThemeContext";
+import HomeSkeleton, { HomeCardsSkeleton } from "@/components/skeletons/HomeSkeleton";
 
 type CategoryFilter = "All" | Category;
+
+let homeInitialLoadDone = false;
 
 const STEP = 6;
 const { width } = Dimensions.get("window");
@@ -44,7 +47,7 @@ const index = () => {
   const { isDark, colors: C } = useTheme();
   const styles = useMemo(() => createStyles(C, isDark), [isDark]);
 
-  const { data, isFetching } = useGetAllDestinations({ category: activeCategory, limit });
+  const { data, isFetching, isLoading } = useGetAllDestinations({ category: activeCategory, limit });
   const destinations = data?.destinations || [];
   const hasMore = destinations.length >= limit;
 
@@ -52,8 +55,12 @@ const index = () => {
   const isFavorited = (destinationId: string) =>
     favorite?.data?.some((dest: Destination) => dest.id === destinationId) ?? false;
 
+  if (!isLoading) homeInitialLoadDone = true;
+  if (isLoading && !homeInitialLoadDone) return <HomeSkeleton />;
+
   const handleSelectCategory = (cat: CategoryFilter, event: any) => {
     const { pageY } = event.nativeEvent;
+    Haptics.selectionAsync();
     setIsAbove(pageY <= viewHeight / 2);
     setLimit(STEP);
     setActiveCategory(cat);
@@ -101,52 +108,51 @@ const index = () => {
       </View>
 
       {/* ── Cards area ── */}
-      <View style={{ flex: 1 }}>
-        {/* Destination count */}
-        <View style={{ paddingTop: 5, paddingBottom: 8, paddingHorizontal: 4 }}>
-          <View style={styles.countPill}>
-            <Ionicons name="location" size={13} color={C.primary[500]} />
-            <Text style={styles.countText}>
-              {destinations.length} spot{destinations.length !== 1 ? "s" : ""}
-            </Text>
-          </View>
-        </View>
+      <View style={{ flex: 1, paddingTop: 5 }}>
+        {isFetching ? (
+          <HomeCardsSkeleton />
+        ) : (
+          <>
+            {/* Destination count */}
+            <View style={{ paddingBottom: 8, paddingHorizontal: 4 }}>
+              <View style={styles.countPill}>
+                <Ionicons name="location" size={13} color={C.primary[500]} />
+                <Text style={styles.countText}>
+                  {destinations.length} spot{destinations.length !== 1 ? "s" : ""}
+                </Text>
+              </View>
+            </View>
 
-        <FlatList
-          data={destinations as Destination[]}
-          horizontal
-          style={{ flex: 1 }}
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          initialNumToRender={5}
-          ListFooterComponent={
-            hasMore ? (
-              <TouchableOpacity
-                onPress={() => setLimit((prev) => prev + STEP)}
-                disabled={isFetching}
-                style={styles.loadMoreCard}
-                activeOpacity={0.7}
-              >
-                {isFetching ? (
-                  <ActivityIndicator size="large" color={C.primary[500]} />
-                ) : (
-                  <>
+            <FlatList
+              data={destinations as Destination[]}
+              horizontal
+              style={{ flex: 1 }}
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              renderItem={renderItem}
+              initialNumToRender={5}
+              ListFooterComponent={
+                hasMore ? (
+                  <TouchableOpacity
+                    onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setLimit((prev) => prev + STEP); }}
+                    style={styles.loadMoreCard}
+                    activeOpacity={0.7}
+                  >
                     <View style={styles.loadMoreIcon}>
                       <Ionicons name="arrow-forward" size={22} color={C.primary[500]} />
                     </View>
                     <Text style={styles.loadMoreText}>Load more</Text>
-                  </>
-                )}
-              </TouchableOpacity>
-            ) : null
-          }
-          contentContainerStyle={{
-            paddingHorizontal: 5,
-            paddingVertical: 5,
-            alignItems: "center",
-          }}
-        />
+                  </TouchableOpacity>
+                ) : null
+              }
+              contentContainerStyle={{
+                paddingHorizontal: 5,
+                paddingVertical: 5,
+                alignItems: "center",
+              }}
+            />
+          </>
+        )}
       </View>
     </View>
   );

@@ -1,6 +1,6 @@
 import { getAuth } from "@clerk/express";
 import prisma from "../config/db.config";
-import genAI from "../config/gemini.config";
+import openai from "../config/gemini.config";
 import AppError from "../errors/AppError";
 import NotFoundError from "../errors/NotFoundError";
 import ValidationErrors from "../errors/ValidationError";
@@ -73,10 +73,10 @@ export const generateChatResponse = catchAsync(async (req, res) => {
     });
   }
 
-  // --- Build conversation history for Gemini ---
+  // --- Build conversation history for OpenAI ---
   const history = conversation.messages.map((msg) => ({
-    role: msg.role === "USER" ? "user" : "model", // adjust to match your MessageRole enum
-    parts: [{ text: msg.content }],
+    role: (msg.role === "USER" ? "user" : "assistant") as "user" | "assistant",
+    content: msg.content,
   }));
 
   // --- Build system instruction ---
@@ -96,13 +96,14 @@ export const generateChatResponse = catchAsync(async (req, res) => {
   `;
 
   // --- Stream AI response ---
-  const result = await genAI.models.generateContentStream({
-    model: "gemini-2.5-flash-lite",
-    contents: [
+  const stream = await openai.chat.completions.create({
+    model: "gpt-4o-mini",
+    stream: true,
+    messages: [
+      { role: "system", content: systemInstruction },
       ...history,
-      { role: "user", parts: [{ text: chat }] }, // append current message after history
+      { role: "user", content: chat },
     ],
-    config: { systemInstruction },
   });
 
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
@@ -111,8 +112,8 @@ export const generateChatResponse = catchAsync(async (req, res) => {
 
   let fullAiResponse = "";
 
-  for await (const chunk of result) {
-    const chunkText = chunk.text;
+  for await (const chunk of stream) {
+    const chunkText = chunk.choices[0]?.delta?.content;
     if (chunkText) {
       fullAiResponse += chunkText;
       res.write(chunkText);

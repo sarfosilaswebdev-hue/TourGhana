@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import React, { useMemo } from "react";
+import * as Haptics from "expo-haptics";
 import { Destination } from "@/Utils/types";
 import { Ionicons } from "@expo/vector-icons";
 import GhanaFlag from "@/assets/images/ghanaFlag.png";
@@ -24,11 +25,13 @@ const DestinationCard = ({
   widthIncrement = 0,
   height,
   isFavorited,
+  onPress,
 }: {
   item: Destination;
   widthIncrement?: number;
   height?: number;
   isFavorited?: (destinationId: string) => boolean;
+  onPress?: () => void;
 }) => {
   const router = useRouter();
   const C = useThemeColors();
@@ -42,12 +45,22 @@ const DestinationCard = ({
         styles.card,
         { width: width * 0.72 + widthIncrement, height: height || "100%" },
       ]}
-      onPress={() =>
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (onPress) {
+          onPress();
+          return;
+        }
         router.push({
           pathname: "/(modals)/[DestinationId]",
-          params: { DestinationId: String(item.id) },
-        })
-      }
+          params: {
+            DestinationId: String(item.id),
+            imageUrl: optimizeImage(item.images[0], { width: 800, quality: 80 }),
+            name: item.name,
+            region: item.region ?? "",
+          },
+        });
+      }}
     >
       {/* Background image */}
       <Image
@@ -79,7 +92,14 @@ const DestinationCard = ({
           <Text style={styles.ratingText}>{item.rating}</Text>
         </View>
         <TouchableOpacity
-          onPress={() => toggleFavorite(item.id)}
+          onPress={() => {
+            if (isFavorite) {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            } else {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            }
+            toggleFavorite(item.id);
+          }}
           disabled={togglingFavorite}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           style={styles.bookmarkBtn}

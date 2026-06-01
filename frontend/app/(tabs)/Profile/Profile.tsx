@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import React from "react";
+import * as Haptics from "expo-haptics";
 import { Image } from "expo-image";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -14,6 +15,7 @@ import { useGetUserBookings } from "@/hooks/bookings.hook";
 import { useGetFavoriteDestinations } from "@/hooks/destination.hook";
 import { useGetUserReviews } from "@/hooks/reviews.hook";
 import { useTheme, ThemeMode } from "@/context/ThemeContext";
+import ProfileSkeleton from "@/components/skeletons/ProfileSkeleton";
 
 const menuItems = [
   { icon: "calendar-outline", label: "My Bookings", route: "/(tabs)/Trips/Trips" },
@@ -49,13 +51,7 @@ const ProfileScreen = () => {
     { label: "Reviews", icon: "star", value: reviewsCount, route: "/(modals)/MyReviews" },
   ];
 
-  if (!isLoaded) {
-    return (
-      <View className="flex-1 items-center justify-center bg-background">
-        <ActivityIndicator size="large" color={C.primary[500]} />
-      </View>
-    );
-  }
+  if (!isLoaded) return <ProfileSkeleton />;
 
   return (
     <ScrollView
@@ -100,7 +96,7 @@ const ProfileScreen = () => {
         {stats.map(({ label, icon, value, route }, i) => (
           <TouchableOpacity
             key={label}
-            onPress={() => router.push(route as any)}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push(route as any); }}
             style={i < 2 ? { borderRightWidth: 1, borderRightColor: C.primary[100] } : undefined}
             className="flex-1 items-center py-4"
           >
@@ -156,7 +152,7 @@ const ProfileScreen = () => {
             return (
               <TouchableOpacity
                 key={mode}
-                onPress={() => setThemeMode(mode)}
+                onPress={() => { Haptics.selectionAsync(); setThemeMode(mode); }}
                 activeOpacity={0.75}
                 style={{
                   flex: 1,
@@ -200,7 +196,7 @@ const ProfileScreen = () => {
         {menuItems.map(({ icon, label, route }, i) => (
           <TouchableOpacity
             key={label}
-            onPress={() => route && router.push(route as any)}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); route && router.push(route as any); }}
             style={i < menuItems.length - 1 ? { borderBottomWidth: 1, borderBottomColor: C.primary[50] } : undefined}
             className="flex-row items-center px-4 py-4"
           >
@@ -215,7 +211,7 @@ const ProfileScreen = () => {
 
       {/* Sign out */}
       <TouchableOpacity
-        onPress={() => signOut()}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); signOut(); }}
         style={{
           backgroundColor: isDark ? "rgba(239,68,68,0.1)" : "#FEF2F2",
           borderColor: isDark ? "rgba(239,68,68,0.2)" : "#FEE2E2",

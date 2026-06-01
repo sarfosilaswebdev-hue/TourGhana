@@ -4,6 +4,7 @@ import destinationRoutes from "./destination.routes";
 import openaiRoutes from "./openai.routes";
 import bookingRoutes from "./booking.routes";
 import reviewRoutes from "./reviews.routes";
+import adminRoutes from "./admin.routes";
 
 const router = Router();
 
@@ -16,6 +17,6 @@ router.use('/destinations',destinationRoutes)
 router.use('/openai', openaiRoutes)
 router.use("/bookings", bookingRoutes);
 router.use("/reviews", reviewRoutes);
-
+router.use("/admin", adminRoutes);
 
 export default router;

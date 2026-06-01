@@ -85,6 +85,7 @@ const InitialRootLayout = () => {
           headerTitle: "",
           headerTransparent: false,
           headerBackTitle: "",
+          animation: "fade",
         }}
       />
       <Stack.Screen

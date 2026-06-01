@@ -103,7 +103,8 @@ export const deleteBooking = catchAsync(async (req, res) => {
   if (!clerkId)
     return res.status(401).json({ status: "fail", message: "Unauthorized" });
 
-  const { id } = req.params;
+  const { id: idParam } = req.params;
+  const id = Array.isArray(idParam) ? idParam[0] : idParam;
   const user = await prisma.user.findUnique({ where: { clerkId } });
   if (!user) throw new NotFoundError("User");
 

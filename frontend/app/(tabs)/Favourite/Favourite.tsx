@@ -6,8 +6,10 @@ import {
   ActivityIndicator,
   StyleSheet,
   Dimensions,
+  RefreshControl,
 } from "react-native";
 import React, { useMemo } from "react";
+import * as Haptics from "expo-haptics";
 import { useGetFavoriteDestinations, useToggleFavorite } from "@/hooks/destination.hook";
 import { Destination } from "@/Utils/types";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,6 +18,7 @@ import { Image } from "expo-image";
 import { optimizeImage } from "@/Utils/optimizeImage";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, AppColors } from "@/context/ThemeContext";
+import FavouriteSkeleton from "@/components/skeletons/FavouriteSkeleton";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const CARD_GAP = 12;
@@ -34,12 +37,13 @@ const FavouriteCard = ({ item }: { item: Destination }) => {
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.9}
-      onPress={() =>
+      onPress={() => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         router.push({
           pathname: "/(modals)/[DestinationId]",
           params: { DestinationId: String(item.id) },
-        })
-      }
+        });
+      }}
     >
       <Image
         source={{ uri: optimizeImage(item.images[0], { width: 400, quality: 75 }) }}
@@ -64,7 +68,7 @@ const FavouriteCard = ({ item }: { item: Destination }) => {
       </View>
       <TouchableOpacity
         style={styles.removeBtn}
-        onPress={() => toggleFavorite(item.id)}
+        onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); toggleFavorite(item.id); }}
         disabled={isPending}
         activeOpacity={0.8}
         hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
@@ -106,11 +110,13 @@ const EmptyState = () => {
 
 // ── Screen ────────────────────────────────────────────────────
 const Favourite = () => {
-  const { data, isLoading } = useGetFavoriteDestinations();
+  const { data, isLoading, refetch, isRefetching } = useGetFavoriteDestinations();
   const { top } = useSafeAreaInsets();
   const { isDark, colors: C } = useTheme();
   const styles = useMemo(() => createStyles(C, isDark), [isDark]);
   const favourites: Destination[] = data?.data ?? [];
+
+  if (isLoading) return <FavouriteSkeleton />;
 
   return (
     <View style={[styles.root, { paddingTop: top }]}>
@@ -121,6 +127,14 @@ const Favourite = () => {
         showsVerticalScrollIndicator={false}
         columnWrapperStyle={styles.row}
         contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={C.primary[500]}
+            colors={[C.primary[500]]}
+          />
+        }
         renderItem={({ item }) => <FavouriteCard item={item} />}
         ListHeaderComponent={() => (
           <View style={styles.header}>
@@ -132,15 +146,7 @@ const Favourite = () => {
             )}
           </View>
         )}
-        ListEmptyComponent={
-          isLoading ? (
-            <View style={styles.loadingWrap}>
-              <ActivityIndicator size="large" color={C.primary[500]} />
-            </View>
-          ) : (
-            <EmptyState />
-          )
-        }
+        ListEmptyComponent={<EmptyState />}
       />
     </View>
   );

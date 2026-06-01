@@ -7,8 +7,10 @@ import {
   StyleSheet,
   Animated,
   Alert,
+  RefreshControl,
 } from "react-native";
 import React, { useMemo, useRef } from "react";
+import * as Haptics from "expo-haptics";
 import { Booking } from "@/Utils/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -21,6 +23,7 @@ import {
 } from "@/hooks/bookings.hook";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTheme, AppColors } from "@/context/ThemeContext";
+import TripsSkeleton from "@/components/skeletons/TripsSkeleton";
 
 // ── Booking card ──────────────────────────────────────────────
 const BookingCard = ({ item }: { item: Booking }) => {
@@ -63,6 +66,7 @@ const BookingCard = ({ item }: { item: Booking }) => {
   });
 
   function handleCancel() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
       "Cancel booking",
       `Cancel your trip to ${item.destination.name}? This cannot be undone.`,
@@ -74,6 +78,7 @@ const BookingCard = ({ item }: { item: Booking }) => {
   }
 
   function handleDelete() {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
     Alert.alert(
       "Delete booking",
       "Remove this booking from your trips list?",
@@ -99,12 +104,13 @@ const BookingCard = ({ item }: { item: Booking }) => {
       <TouchableOpacity
         activeOpacity={0.92}
         style={styles.card}
-        onPress={() =>
+        onPress={() => {
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
           router.push({
             pathname: "/(modals)/BookingConfirmation",
             params: { bookingId: item.id },
-          })
-        }
+          });
+        }}
       >
         <View style={styles.imageContainer}>
           <Image
@@ -219,7 +225,7 @@ const EmptyState = () => {
 
 // ── Screen ────────────────────────────────────────────────────
 const Trips = () => {
-  const { data, isLoading } = useGetUserBookings();
+  const { data, isLoading, refetch, isRefetching } = useGetUserBookings();
   const { top } = useSafeAreaInsets();
   const { isDark, colors: C } = useTheme();
   const styles = useMemo(() => createStyles(C, isDark), [isDark]);
@@ -228,19 +234,7 @@ const Trips = () => {
   const upcoming = bookings.filter((b) => b.status !== "CANCELLED").length;
   const cancelled = bookings.filter((b) => b.status === "CANCELLED").length;
 
-  if (isLoading) {
-    return (
-      <View style={[styles.root, { paddingTop: top }]}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>My Trips</Text>
-        </View>
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator size="large" color={C.primary[500]} />
-          <Text style={styles.loadingLabel}>Loading your trips…</Text>
-        </View>
-      </View>
-    );
-  }
+  if (isLoading) return <TripsSkeleton />;
 
   return (
     <View style={[styles.root, { paddingTop: top }]}>
@@ -250,6 +244,14 @@ const Trips = () => {
         renderItem={({ item }) => <BookingCard item={item} />}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefetching}
+            onRefresh={refetch}
+            tintColor={C.primary[500]}
+            colors={[C.primary[500]]}
+          />
+        }
         ListHeaderComponent={() => (
           <View style={styles.header}>
             <Text style={styles.headerTitle}>My Trips</Text>

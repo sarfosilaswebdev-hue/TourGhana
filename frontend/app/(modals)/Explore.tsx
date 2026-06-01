@@ -1,35 +1,61 @@
 import DestinationCard from "@/components/Home/DestinationCard";
+import ExploreSkeleton, { PrefetchedExploreSkeleton } from "@/components/skeletons/ExploreSkeleton";
 import { Colors } from "@/contants/colors";
 import { ALL_TAGS, categories, DefaultStyles } from "@/contants/contants";
 import { useSearch } from "@/context/SearchProvider";
+import { useTheme } from "@/context/ThemeContext";
+import * as Haptics from "expo-haptics";
 import { useGetAllDestinations, useGetFavoriteDestinations } from "@/hooks/destination.hook";
 import { Destination } from "@/Utils/types";
 import { useHeaderHeight } from "@react-navigation/elements";
 import { BlurView } from "expo-blur";
+import { useRouter } from "expo-router";
+import { optimizeImage } from "@/Utils/optimizeImage";
 import {
   Text,
   StyleSheet,
   View,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
 } from "react-native";
 
 export default function App() {
-  const { data } = useGetAllDestinations({ category: "All", limit: 10 });
+  const { data, isLoading: isDestinationsLoading } = useGetAllDestinations({ category: "All", limit: 10 });
   const destinations: Destination[] = data?.destinations || [];
   const { searchResult, isFetching,setSearch } = useSearch();
   const headerHeight = useHeaderHeight();
+  const {isDark} = useTheme();
+  const router = useRouter();
 
-   const { data: favorite } = useGetFavoriteDestinations();
-  
-    const isFavorited = (destinationId: string) => {
+  const { data: favorite } = useGetFavoriteDestinations();
+
+  const isFavorited = (destinationId: string) => {
     return favorite?.data?.some((dest: Destination) => dest.id === destinationId) ?? false;
   };
 
+  function navigateToDestination(item: Destination) {
+    router.dismiss();
+    setTimeout(() => {
+      router.push({
+        pathname: "/(modals)/[DestinationId]",
+        params: {
+          DestinationId: String(item.id),
+          imageUrl: optimizeImage(item.images[0], { width: 800, quality: 80 }),
+          name: item.name,
+          region: item.region ?? "",
+        },
+      });
+    }, 50);
+  }
 
   const renderItem = ({ item }: { item: Destination }) => (
-    <DestinationCard item={item} widthIncrement={80} height={250}  isFavorited={isFavorited}/>
+    <DestinationCard
+      item={item}
+      widthIncrement={80}
+      height={250}
+      isFavorited={isFavorited}
+      onPress={() => navigateToDestination(item)}
+    />
   );
 
   return (
@@ -59,9 +85,9 @@ export default function App() {
             />
           </View>
         ) : isFetching ? (
-          <View className="items-center justify-center h-[250px]">
-            <ActivityIndicator size={40} color={Colors.secondary[700]}/>
-          </View>
+          <ExploreSkeleton />
+        ) : isDestinationsLoading ? (
+          <PrefetchedExploreSkeleton />
         ) : (
           <>
             <FlatList
@@ -83,9 +109,11 @@ export default function App() {
                   key={index}
                   className="px-3 py-2 bg-background rounded-xl"
                   style={DefaultStyles.shadow}
-                  onPress={()=>setSearch(category)}
+                  onPress={() => { Haptics.selectionAsync(); setSearch(category); }}
                 >
-                  <Text className="font-regular">{category.toUpperCase()}</Text>
+                  <Text className="font-regular" style={{ color: isDark ? "white" : "black" }}>
+                    {category.toUpperCase()}
+                  </Text>
                 </TouchableOpacity>
               ))}
             </View>
